@@ -1,0 +1,228 @@
+---
+title: "Fama Macbeth"
+author: "Sriniwas M"
+date: "28 March 2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+###Update R
+```
+install.packages("installr")
+library(installr)
+updateR()
+```
+
+
+###Load the Relevant Packages
+
+```
+install.packages("lmtest")
+install.packages("rmarkdown")
+install.packages("knitr")
+install.packages("readxl")
+install.packages("dplyr")
+install.packages("lme4")
+
+library(lmtest)
+library(rmarkdown)
+library(knitr)
+library(readxl)
+library(dplyr)
+library(lme4)
+```
+
+###Read the Data File and Define Variables
+
+```{r}
+setwd("C:/Users/51950005/Desktop/Term III/FFE/fama macbeth assignment")
+# ensure that the data has the date column (column 1), followerd by the three FF factors (column 2:4), the risk free rate (column 5), and than the portfolio returns for the 100 portfolios (column 6:105)
+
+Data <- data.frame(read.csv(file = '100_Portfolios_10x10_Daily.csv', header = TRUE)) # read the file. it has first 5 cols date, mkt-rf, smb, hml and rf. next 100 columns as portfolio returns
+colnames(Data)[1] <- "Date" # name the first column as Date
+
+# convert to chars to convert to numbers. And than make it a data frame
+Data <- lapply(Data, as.character) 
+Data <- lapply(Data, as.numeric)
+Data <- as.data.frame(Data)
+
+#-----------------------------------------------------------------
+#Sanity check of the imported data
+#-----------------------------------------------------------------
+head(Data)
+summary(Data)
+names(Data) 
+
+#-----------------------------------------------------------------
+# calculate excess returns (i.e. return on ptf - risk free return)
+#-----------------------------------------------------------------
+
+for (i in 6:105){
+    Data[i] <- Data[i] - Data[5]
+}
+#------------------------------------------------------------------
+#Extract Year from Date information
+#------------------------------------------------------------------
+nrow(Data)
+# 98744 rows i.e. daily observations for each portfolio
+# no of years = 2020-1926+1 = 95 years
+
+Data$Date1 <- as.character(Data$Date) 
+
+Data$Date1 <- as.Date(Data$Date1, format="%Y%m%d") # comvert date to year format
+
+Data$year <- as.numeric(format(Data$Date1, "%Y")) # extract year from dates (as number)
+
+#------------------------------------------------------------------
+#store portfolio names for reference purposes
+#------------------------------------------------------------------
+x <- names(Data)
+portfolios <- as.vector(x[c(6:105)])
+
+```
+
+
+
+### Calculation of beta for portfolios 
+
+
+**1. Calculation of betas for portfolios using only 1926 year data**
+```{r}
+Data1926 <- Data[Data$year == 1926,] # create a data frame with only data from year 1926
+
+storage.mktbeta <- rep(NA,100)
+storage.sizebeta <- rep(NA,100)
+storage.valuebeta <- rep(NA,100)
+
+for (i in 6:105){
+    outcome=colnames(Data1926)[i]
+    exposure=colnames(Data1926)[2]
+    exposuresize=colnames(Data1926)[3]
+    exposurebm=colnames(Data1926)[4]
+    model <- lm(get(outcome) ~ get(exposure) + get(exposuresize) + get(exposurebm), data=Data1926)
+    
+    storage.mktbeta[i] <- model$coefficient[2]
+    storage.sizebeta[i] <- model$coefficient[3]
+    storage.valuebeta[i] <- model$coefficient[4]
+  }
+
+storage.mktbeta <- storage.mktbeta[c(6:105)]
+storage.sizebeta <- storage.sizebeta[c(6:105)]
+storage.valuebeta <- storage.valuebeta[c(6:105)]
+
+# create matrix containing parameters for portfolios in the year 1926
+
+mat1926 <- matrix(c(portfolios, storage.mktbeta, storage.sizebeta, storage.valuebeta),ncol=4) 
+
+```
+***Matrix mat1926*** contains the market beta, size factor beta and value factor beta for the 100 portfolios for the year 1926
+
+
+**2. Calculating betas for portfolios for all years**
+```{r}
+risk <- list() # a blank list to store the risk matrices (300x3) for each year
+
+for (j in 1926:2020)
+  {
+  yearlydata <- Data[Data$year == j,]
+  storage.mktbeta <- rep(NA,100)
+  storage.sizebeta <- rep(NA,100)
+  storage.valuebeta <- rep(NA,100)
+  for (i in 6:105){
+    outcome=colnames(yearlydata)[i]
+    exposure=colnames(yearlydata)[2]
+    exposuresize=colnames(yearlydata)[3]
+    exposurebm=colnames(yearlydata)[4]
+    model <- lm(get(outcome) ~ get(exposure) + get(exposuresize) + get(exposurebm), data=yearlydata)
+    
+    storage.mktbeta[i] <- model$coefficient[2]
+    storage.sizebeta[i] <- model$coefficient[3]
+    storage.valuebeta[i] <- model$coefficient[4]
+  }
+  
+  storage.mktbeta <- storage.mktbeta[c(6:105)]
+  storage.sizebeta <- storage.sizebeta[c(6:105)]
+  storage.valuebeta <- storage.valuebeta[c(6:105)]
+  risk[[j]] <- matrix(c(portfolios, storage.mktbeta, storage.sizebeta, storage.valuebeta),ncol=4) 
+}
+
+# example of risk matrix for year 1926 and year 2020
+risk[[1926]]
+risk[[2020]]
+
+```
+***Risk is a list containing 95 risk matrices*** where each matrix corresponds to a year and has the portfolio betas for the 100 portfolios
+
+**3. NIFTY Bank Return vs Change in M3 Money supply**
+```{r}
+plot(NIFTYBankReturn ~ M3Change, data=NewData, xlab="Change in M3 money supply", ylab="Return on NIFTY Bank")
+abline(lm(NIFTYBankReturn ~ M3Change), col="red")
+cor.test(NIFTYBankReturn, M3Change, method = "pearson")
+```
+***No*** correlation between Change in M3 money supply and Bank NIFTY returns
+
+**4. NIFTY Bank Return vs 1 period lagged value of Change in M3 Money supply**
+```{r}
+plot(NIFTYBankReturn ~ M3ChangeLag, data=NewData, xlab="Lagged change in M3 Money supply", ylab="Return on NIFTY Bank")
+abline(lm(NIFTYBankReturn ~ M3ChangeLag), col="red")
+cor.test(NIFTYBankReturn, M3ChangeLag, method = "pearson")
+```
+***No*** significant correlation between Lagged change in M3 Money supply and Bank NIFTY returns
+
+**5. NIFTY Bank Return vs DJIA return**
+```{r}
+plot(NIFTYBankReturn ~ DJIAReturn, data=NewData, xlab="Return on DJIA", ylab="Return on NIFTY Bank")
+abline(lm(NIFTYBankReturn ~ DJIAReturn), col="red")
+cor.test(NIFTYBankReturn, DJIAReturn, method = "pearson")
+```
+***Positive*** correlation between DJIA returns and Bank NIFTY returns
+
+**6. NIFTY Bank Return vs Change in Fx rate (USD/INR)**
+```{r}
+plot(NIFTYBankReturn ~ FXRateChange, data=NewData, xlab="Change in USD/INR (INR per USD)", ylab="Return on NIFTY Bank")
+abline(lm(NIFTYBankReturn ~ FXRateChange), col="red")
+cor.test(NIFTYBankReturn, FXRateChange, method = "pearson")
+```
+***No*** significant correlation between Change in USD/INR rate and Bank NIFTY returns
+
+**7. NIFTY Bank Return vs 1 period lagged Change in Fx rate (USD/INR)**
+```{r}
+plot(NIFTYBankReturn ~ FXRateChangeLag, data=NewData, xlab="Lagged Change in USD/INR (INR per USD)", ylab="Return on NIFTY Bank")
+abline(lm(NIFTYBankReturn ~ FXRateChangeLag), col="red")
+cor.test(NIFTYBankReturn, FXRateChangeLag, method = "pearson")
+```
+***Negative*** correlation between Lagged Change in USD/INR rate and Bank NIFTY returns
+
+**8. NIFTY Bank Return vs IIP General Index**
+```{r}
+plot(NIFTYBankReturn ~ IIPG, data=NewData, xlab="IIP General Index", ylab="Return on NIFTY Bank")
+abline(lm(NIFTYBankReturn ~ IIPG), col="red")
+cor.test(NIFTYBankReturn, IIPG, method = "pearson")
+```
+***No*** correlation between IIP General Index and Bank NIFTY returns
+
+**9. NIFTY Bank Return vs 1 period lagged IIP General Index**
+```{r}
+plot(NIFTYBankReturn ~ IIPGLag, data=NewData, xlab="Lagged IIP General Index", ylab="Return on NIFTY Bank")
+abline(lm(NIFTYBankReturn ~ IIPGLag), col="red")
+cor.test(NIFTYBankReturn, IIPGLag, method = "pearson")
+```
+***No*** correlation between IIP General Index and Bank NIFTY returns
+
+###Multiple Regression Analysis
+**Multiple Regression with All Independent Variables**
+```{r}
+Fit1 <- lm(NIFTYBankReturn ~ FII + FERChange + M3ChangeLag + DJIAReturn + FXRateChangeLag + IIPGLag, data = NewData)
+summary(Fit1)
+```
+R-square of 49.84%. The independent variables: "Change in FER", "Lagged change in M3 Money supply" and "Lagged valued of IIP General Index" are **insignificant** in determining the Return on NIFTY BANK Index.
+
+**Multiple Regression after Dropping the Insignificant Variables**
+```{r}
+Fit2 <- lm(NIFTYBankReturn ~ FII + FXRateChangeLag + DJIAReturn, data = NewData)
+summary(Fit2)
+```
+R square of 46.5%.
+All the independent variables: "FII", "Lagged change in USD/INR", "and Return on DJIA" are significant in determining the "Return on NIFTY Bank"
+FII and Return on DJIA have positive slope coefficients. This implies **Increase in FII and postive returns on DJIA, leads to higher returns on NIFTY Bank.**
+But Lagged change in USD/INR has a negative coefficient. This means **when INR depreciates w.r.t. USD, the return on NIFTY Bank decreases.**

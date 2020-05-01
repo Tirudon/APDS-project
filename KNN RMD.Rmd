@@ -1,0 +1,62 @@
+---
+title: "K-Nearest Neighbour"
+output:
+  word_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+## Load the Relevant Packages
+```{r, echo=FALSE}
+#knitr::opts_chunk$set(error = TRUE)
+```
+```
+library(class)
+```
+## Read the Data File
+```{r}
+all_data <- read.csv("normalized_data_all.csv")
+dim(all_data)
+```
+
+## Sampling the data into Training and Test sets
+```{r}
+sample_rows <- sample(60, 45)
+
+train_data <- all_data[sample_rows,]
+dim(train_data)
+
+test_data <- all_data[-sample_rows,]
+dim(test_data)
+```
+
+## Create model for KNN classification using K=1 and 5
+```{r}
+library(class)
+KNN_model_1 <- knn(train_data[-1:-2], test_data[-1:-2], train_data$Categorical.NIFTY.Bank.return)
+KNN_model_5 <- knn(train_data[-1:-2], test_data[-1:-2], train_data$Categorical.NIFTY.Bank.return, k=5)
+```
+
+## Label the Actual Returns Observed
+```{r}
+actual_returns <- test_data$Categorical.NIFTY.Bank.return
+```
+
+## Confusion Matrix & Accuracy for K =1
+```{r}
+table(KNN_model_1,actual_returns)
+mean(KNN_model_1==actual_returns)
+```
+
+## Confusion Matrix & Accuracy for K =5
+```{r}
+table(KNN_model_5,actual_returns)
+mean(KNN_model_5==actual_returns)
+```
+
+##------------------------------------
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
